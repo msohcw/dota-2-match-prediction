@@ -47,7 +47,21 @@ X = np.array(clean)
 
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size, random_state=seed)
 # fit model no training data
-model = XGBClassifier()
+model = XGBClassifier(
+ learning_rate =0.3,
+ n_estimators=1000,
+ max_depth=5,
+ min_child_weight=1,
+ gamma=0,
+ subsample=0.8,
+ colsample_bytree=0.8,
+ objective= 'binary:logistic',
+ nthread=4,
+ scale_pos_weight=1,
+ seed=27,
+ silent=1
+)
+"""
 y_train = (np.array(y_train)).flatten()
 model.fit(X_train, y_train)
 # make predictions for test data
@@ -56,24 +70,27 @@ predictions = [round(value) for value in y_pred]
 # evaluate predictions
 accuracy = accuracy_score(y_test, predictions)
 print("Accuracy: %.2f%%" % (accuracy * 100.0))
-"""
-Y = np.array(Y).flatten()
+
 
 model = XGBClassifier()
-
-learning_rate = [0.0001, 0.001, 0.01, 0.1, 0.2, 0.3]
-param_grid = dict(learning_rate=learning_rate)
-kfold = StratifiedKFold(Y, n_folds=10, shuffle=True, random_state=7)
-grid_search = GridSearchCV(model, param_grid, scoring="neg_log_loss", n_jobs=-1, cv=kfold)
+"""
+Y = np.array(Y).flatten()
+learning_rate = [0.05, 0.15, 0.3]
+n_estimators = [100, 300, 1000]
+max_depth = [3, 5, 7, 9]
+min_child_weight = [1, 3, 5]
+param_grid = dict(learning_rate=learning_rate, n_estimators=n_estimators, max_depth=max_depth, min_child_weight = min_child_weight)
+kfold = StratifiedKFold(Y, n_folds=5, shuffle=True, random_state=7)
+grid_search = GridSearchCV(model, param_grid, scoring="neg_log_loss", n_jobs=-1, cv=kfold, verbose=10)
 
 result = grid_search.fit(X, Y)
 
 # summarize results
 print("Best: %f using %s" % (result.best_score_, result.best_params_))
+print("Best: {} using {}".format(result.best_score_, result.best_params_))
 means, stdevs = [], []
 for params, mean_score, scores in result.grid_scores_:
     stdev = scores.std()
     means.append(mean_score)
     stdevs.append(stdev)
     print("%f (%f) with: %r" % (mean_score, stdev, params))
-"""
