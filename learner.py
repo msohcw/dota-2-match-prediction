@@ -8,45 +8,54 @@ from sklearn.cross_validation import StratifiedKFold
 
 dataset = pd.read_csv('MatchOverviewTraining.csv')
 details = pd.read_csv('MatchDetail.csv')
+
 X = dataset.ix[: , :11]
 Y = dataset.ix[: , 11:]
-det = np.array(details)
-print("Done loading.", len(det))
-players = {}
-for row in det:
-  key = int(row[0]);
-  if key in players:
-    players[key].update({row[1]:row[2:]})
-  else:
-    players.update({key:{row[1]:row[2:]}})
 
-clean = []
+det = np.array(details)
+print("Done loading data.")
+print(len(dataset), "rows in dataset.")
+print(len(det), "rows in details.")
+
+games = {}
+for row in det:
+  key = int(row[0]); # match_id
+  if key in games:
+    # if match already in games
+    games[key].update({row[1]:row[2:]}) 
+  else:
+    # add match to games
+    games.update({key:{row[1]:row[2:]}})
+
+fullset = []
 index = 0
 for row in np.array(X):
     insert = []
-    key = int(row[0])
-    if key not in players:
+    key = int(row[0]) # match_id
+    if key not in games:
         player = {}
     else:
-        player = players[key]
-    # print(match)
-    for i in range(1, 11):
-        replace = [0] * 21;
+        player = games[key]
+    for i in range(1, 11): # hero_1 - 10
+        replace = [0] * 21; # default null values
         if row[i] in player: replace = list(player[row[i]])
-        if len(replace) < 21: 
-            replace.extend([0] * (21 - len(replace)))
+        # add null values
+        if len(replace) < 21: replace.extend([0] * (21 - len(replace)))
+        
         replace.insert(row[i], 0)
         insert.extend(replace)
-    if len(insert) != 220: print(len(insert))
-    clean.append(insert)
-# split data into train and test sets
+    fullset.append(insert)
+
+X = np.array(fullset) 
+
+"""
 seed = 7
 test_size = 0.33
-X = np.array(clean)
- 
+
+# Single test split
 
 X_train, X_test, y_train, y_test = train_test_split(X, Y, test_size=test_size, random_state=seed)
-# fit model no training data
+
 model = XGBClassifier(
  learning_rate =0.2,
  n_estimators=750,
@@ -61,7 +70,7 @@ model = XGBClassifier(
  seed=27,
  silent=1
 )
-"""
+
 y_train = (np.array(y_train)).flatten()
 model.fit(X_train, y_train)
 # make predictions for test data
@@ -70,27 +79,43 @@ predictions = [round(value) for value in y_pred]
 # evaluate predictions
 accuracy = accuracy_score(y_test, predictions)
 print("Accuracy: %.2f%%" % (accuracy * 100.0))
-
-
-model = XGBClassifier()
 """
+
+model = XGBClassifier(
+ learning_rate =0.2,
+ n_estimators=750,
+ max_depth=5,
+ min_child_weight=1,
+ gamma=0,
+ subsample=0.8,
+ colsample_bytree=0.8,
+ objective= 'binary:logistic',
+ nthread=64,
+ scale_pos_weight=1,
+ seed=27,
+ silent=1
+)
+
 Y = np.array(Y).flatten()
-#learning_rate = [0.05, 0.15, 0.3]
-#n_estimators = [100, 300, 700, 1000]
+
+# grid search parameters
+learning_rate = [0.05, 0.15, 0.3]
+n_estimators = [100, 300, 700, 1000]
 max_depth = [3, 5, 7, 9]
 min_child_weight = [1, 3, 5]
-param_grid = dict(max_depth=max_depth, min_child_weight = min_child_weight)
+
+param_grid = dict(learning_rate=learning_rate, n_estimators=n_estimators, max_depth=max_depth, min_child_weight=min_child_weight)
+
+# 10-fold CV
 kfold = StratifiedKFold(Y, n_folds=10, shuffle=True, random_state=7)
 grid_search = GridSearchCV(model, param_grid, scoring="neg_log_loss", n_jobs=-1, cv=kfold, verbose=10)
 
 result = grid_search.fit(X, Y)
 
-# summarize results
-print("Best: %f using %s" % (result.best_score_, result.best_params_))
 print("Best: {} using {}".format(result.best_score_, result.best_params_))
 means, stdevs = [], []
 for params, mean_score, scores in result.grid_scores_:
     stdev = scores.std()
     means.append(mean_score)
     stdevs.append(stdev)
-    print("%f (%f) with: %r" % (mean_score, stdev, params))
+    print("{} ({}) with: {}".format(mean_score, stdev, params))
